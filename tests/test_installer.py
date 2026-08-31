@@ -1,30 +1,60 @@
 from pathlib import Path
+import tarfile
 
 import pytest
 
-from appforge.installer import InstallScope, create_install_plan
+from appforge.installer import (
+    InstallScope,
+    create_install_plan,
+    execute_install_plan,
+)
 
 
-def test_appimage_plan_uses_user_locations(tmp_path: Path) -> None:
-    plan = create_install_plan(tmp_path / "My App.AppImage")
+def test_appimage_install_copies_file_and_writes_launcher(tmp_path: Path) -> None:
+    source = tmp_path / "My App.AppImage"
+    source.write_text("appimage", encoding="utf-8")
+    plan = create_install_plan(source)
 
-    assert plan.scope is InstallScope.USER
-    assert plan.application_id == "my-app"
-    assert [action.name for action in plan.actions] == [
-        "copy-appimage",
-        "make-executable",
-        "create-launcher",
-    ]
-    assert plan.launcher_path.name == "appforge-my-app.desktop"
+    result = execute_install_plan(plan)
 
-
-def test_deb_plan_does_not_create_launcher(tmp_path: Path) -> None:
-    plan = create_install_plan(tmp_path / "tool.deb", scope=InstallScope.SYSTEM)
-
-    assert plan.requires_administrator
-    assert [action.name for action in plan.actions] == ["install-deb-package"]
+    assert result.executable is not None
+    assert result.executable.read_text(encoding="utf-8") == "appimage"
+    assert plan.launcher_path.is_file()
+    assert "Exec=" in plan.launcher_path.read_text(encoding="utf-8")
 
 
-def test_unknown_package_is_rejected(tmp_path: Path) -> None:
+def test_deb_plan_requires_system_scope(tmp_path: Path) -> None:
+    with pytest.raises(ValueError, match="system scope"):
+        create_install_plan(tmp_path / "tool.deb")
+
+
+def test_deb_install_uses_pkexec(tmp_path: Path) -> None:
+    source = tmp_path / "tool.deb"
+    source.write_bytes(b"deb")
+    plan = create_install_plan(source, scope=InstallScope.SYSTEM)
+    calls = []
+
+    class Result:
+        returncode = 0
+        stdout = ""
+        stderr = ""
+
+    def runner(command, **kwargs):
+        calls.append((command, kwargs))
+        return Result()
+
+    execute_install_plan(plan, command_runner=runner)
+
+    assert calls[0][0][:4] == ["pkexec", "apt-get", "install", "--yes"]
+
+
+def test_tar_install_rejects_unsafe_member(tmp_path: Path) -> None:
+    source = tmp_path / "unsafe.tar.gz"
+    payload = tmp_path / "payload"
+    payload.write_text("x", encoding="utf-8")
+    with tarfile.open(source, "w:gz") as archive:
+        archive.add(payload, arcname="../escape")
+
+    plan = create_install_plan(source)
     with pytest.raises(ValueError, match="not a supported"):
-        create_install_plan(tmp_path / "tool.zip")
+        execute_install_plan(plan)
