@@ -48,13 +48,12 @@ def test_deb_install_uses_pkexec(tmp_path: Path) -> None:
     assert calls[0][0][:4] == ["pkexec", "apt-get", "install", "--yes"]
 
 
-def test_tar_install_rejects_unsafe_member(tmp_path: Path) -> None:
+def test_tar_with_unsafe_member_is_rejected_during_detection(tmp_path: Path) -> None:
     source = tmp_path / "unsafe.tar.gz"
     payload = tmp_path / "payload"
     payload.write_text("x", encoding="utf-8")
     with tarfile.open(source, "w:gz") as archive:
         archive.add(payload, arcname="../escape")
 
-    plan = create_install_plan(source)
     with pytest.raises(ValueError, match="not a supported"):
-        execute_install_plan(plan)
+        create_install_plan(source)
