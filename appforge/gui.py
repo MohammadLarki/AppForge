@@ -8,7 +8,8 @@ import tkinter as tk
 from tkinter import filedialog, messagebox, ttk
 
 from .detector import PackageKind, detect_package
-from .installer import InstallScope, InstallationPlan, create_install_plan, execute_install_plan
+from .installer import InstallScope, InstallationPlan, create_install_plan
+from .registry import install_and_record
 
 
 class AppForgeWindow(ttk.Frame):
@@ -37,19 +38,14 @@ class AppForgeWindow(ttk.Frame):
     def choose_package(self) -> None:
         filename = filedialog.askopenfilename(
             title="Choose application package",
-            filetypes=[
-                ("Linux packages", "*.deb *.AppImage *.appimage *.tar.gz *.tgz"),
-                ("All files", "*"),
-            ],
+            filetypes=[("Linux packages", "*.deb *.AppImage *.appimage *.tar.gz *.tgz"), ("All files", "*")],
         )
         if not filename:
             return
-
         package = detect_package(filename)
         if not package.supported:
             messagebox.showerror("Unsupported package", "Choose a supported Linux package.")
             return
-
         self.selected_path = Path(filename)
         self.path_label.set(str(self.selected_path))
         details = package.kind.value
@@ -61,7 +57,6 @@ class AppForgeWindow(ttk.Frame):
     def install(self) -> None:
         if self.selected_path is None:
             return
-
         package = detect_package(self.selected_path)
         scope = InstallScope.SYSTEM if package.kind is PackageKind.DEB else InstallScope.USER
         try:
@@ -69,14 +64,13 @@ class AppForgeWindow(ttk.Frame):
         except ValueError as error:
             messagebox.showerror("Cannot install", str(error))
             return
-
         self.install_button.state(["disabled"])
         self.status.set("Installing…")
         threading.Thread(target=self._install_in_background, args=(plan,), daemon=True).start()
 
     def _install_in_background(self, plan: InstallationPlan) -> None:
         try:
-            result = execute_install_plan(plan)
+            result = install_and_record(plan)
         except Exception as error:
             self.root.after(0, lambda: self._finish_install(str(error), False))
         else:
@@ -93,12 +87,6 @@ class AppForgeWindow(ttk.Frame):
 
 
 def main() -> None:
-    """Launch the AppForge desktop application."""
-
     root = tk.Tk()
     AppForgeWindow(root)
     root.mainloop()
-
-
-if __name__ == "__main__":
-    main()

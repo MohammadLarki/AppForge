@@ -1,0 +1,22 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "appforge"
+version = "0.1.0"
+description = "A lightweight Ubuntu and Debian desktop application installer"
+readme = "README.md"
+requires-python = ">=3.10"
+license = {text = "MIT"}
+authors = [{name = "Mohammad Larki"}]
+classifiers = [
+  "Programming Language :: Python :: 3",
+  "Operating System :: POSIX :: Linux",
+]
+
+[project.scripts]
+appforge = "appforge.gui:main"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
