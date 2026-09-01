@@ -6,11 +6,11 @@ from pathlib import Path
 import sys
 import threading
 import tkinter as tk
-from tkinter import filedialog, messagebox, ttk
+from tkinter import filedialog, messagebox, simpledialog, ttk
 
 from .detector import PackageKind, detect_package
 from .installer import InstallScope, InstallationPlan, create_install_plan
-from .registry import install_and_record
+from .registry import install_and_record, list_installations, uninstall
 
 
 class AppForgeWindow(ttk.Frame):
@@ -28,11 +28,13 @@ class AppForgeWindow(ttk.Frame):
         self.path_label = tk.StringVar(value="No package selected")
         self.install_button = ttk.Button(self, text="Install", command=self.install)
         self.install_button.state(["disabled"])
+        self.uninstall_button = ttk.Button(self, text="Uninstall…", command=self.uninstall_application)
 
         ttk.Label(self, text="Install a Linux application", font=("TkDefaultFont", 16, "bold")).pack(anchor=tk.W)
         ttk.Label(self, textvariable=self.path_label, wraplength=500).pack(anchor=tk.W, pady=(18, 8))
         ttk.Button(self, text="Choose package…", command=self.choose_package).pack(anchor=tk.W)
         self.install_button.pack(anchor=tk.W, pady=(12, 16))
+        self.uninstall_button.pack(anchor=tk.W, pady=(0, 16))
         ttk.Separator(self).pack(fill=tk.X)
         ttk.Label(self, textvariable=self.status, wraplength=500).pack(anchor=tk.W, pady=(14, 0))
 
@@ -85,6 +87,33 @@ class AppForgeWindow(ttk.Frame):
             messagebox.showinfo("AppForge", message)
         else:
             messagebox.showerror("Installation failed", message)
+
+    def uninstall_application(self) -> None:
+        """Safely remove one user-scope application recorded by AppForge."""
+        installations = list_installations()
+        if not installations:
+            messagebox.showinfo("AppForge", "No user applications installed by AppForge were found.")
+            return
+        choices = ", ".join(item.application_id for item in installations)
+        application_id = simpledialog.askstring(
+            "Uninstall application",
+            f"Enter the application ID to remove:\n{choices}",
+            parent=self.root,
+        )
+        if not application_id:
+            return
+        if application_id not in {item.application_id for item in installations}:
+            messagebox.showerror("Cannot uninstall", "Choose an application installed by AppForge.")
+            return
+        if not messagebox.askyesno("Confirm uninstall", f"Remove {application_id} and its launcher?", parent=self.root):
+            return
+        try:
+            uninstall(application_id)
+        except ValueError as error:
+            messagebox.showerror("Cannot uninstall", str(error))
+            return
+        self.status.set(f"Uninstalled: {application_id}")
+        messagebox.showinfo("AppForge", f"Removed {application_id} from Applications.")
 
 
 def main() -> int:

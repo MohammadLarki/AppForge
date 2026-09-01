@@ -9,7 +9,8 @@ launchers, and records user-level installations for later removal.
 - AppImage: copied into the current user's local AppForge folder, marked
   executable, and given an application-menu launcher.
 - tar.gz / tgz: safely extracted into the current user's local AppForge folder
-  and given a launcher when an executable is detected.
+  and given a launcher when an executable is detected. Electron archives have
+  their application icon extracted from `app.asar` when necessary.
 - deb: installed system-wide with `apt-get`; the desktop requests an
   administrator password through the operating system.
 
@@ -56,6 +57,9 @@ cannot open in a headless terminal.
 - AppImage and archive installation remains in the user's home folder by
   default.
 - Only `.deb` installation needs elevation, delegated to `pkexec apt-get`.
+- User-scope installations are recorded and can be removed from the GUI;
+  uninstall removes only the recorded AppForge application directory, launcher,
+  and registry entry.
 
 ## Planned support
 

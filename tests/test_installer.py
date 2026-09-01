@@ -1,4 +1,7 @@
 from pathlib import Path
+import io
+import json
+import subprocess
 import tarfile
 
 import pytest
@@ -58,3 +61,38 @@ def test_tar_with_unsafe_member_is_rejected_during_detection(tmp_path: Path) -> 
 
     with pytest.raises(ValueError, match="not a supported"):
         create_install_plan(source)
+
+
+def test_electron_archive_extracts_icon_and_writes_launchable_launcher(tmp_path: Path, monkeypatch) -> None:
+    monkeypatch.setenv("HOME", str(tmp_path / "home"))
+    source = tmp_path / "Antigravity.tar.gz"
+    icon = b"\x89PNG\r\n\x1a\napp-icon"
+    asar = _make_asar_with_icon(icon)
+    with tarfile.open(source, "w:gz") as archive:
+        _add_archive_file(archive, "Antigravity-x64/antigravity", b"#!/bin/sh\ntest \"$1\" = --no-sandbox\n", 0o755)
+        _add_archive_file(archive, "Antigravity-x64/chrome-sandbox", b"sandbox", 0o755)
+        _add_archive_file(archive, "Antigravity-x64/resources/app.asar", asar, 0o644)
+
+    result = execute_install_plan(create_install_plan(source))
+
+    assert result.executable is not None
+    assert result.icon is not None
+    assert result.icon.read_bytes() == icon
+    launcher = result.plan.launcher_path.read_text(encoding="utf-8")
+    assert f'Exec="{result.executable}" --no-sandbox %U' in launcher
+    assert f"Path={result.executable.parent}" in launcher
+    assert f"Icon={result.icon}" in launcher
+    subprocess.run([str(result.executable), "--no-sandbox"], cwd=result.executable.parent, check=True)
+
+
+def _add_archive_file(archive: tarfile.TarFile, name: str, payload: bytes, mode: int) -> None:
+    info = tarfile.TarInfo(name)
+    info.size = len(payload)
+    info.mode = mode
+    archive.addfile(info, fileobj=io.BytesIO(payload))
+
+
+def _make_asar_with_icon(icon: bytes) -> bytes:
+    header = json.dumps({"files": {"icon.png": {"size": len(icon), "offset": "0"}}}).encode("utf-8")
+    header_size = len(header) + 8
+    return b"\x04\x00\x00\x00" + header_size.to_bytes(4, "little") + b"\x00" * 8 + header + icon

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from enum import Enum
+import json
 from pathlib import Path
 import os
 import re
@@ -55,6 +56,7 @@ class InstallationResult:
 
     plan: InstallationPlan
     executable: Path | None
+    icon: Path | None = None
 
 
 def create_install_plan(
@@ -111,8 +113,9 @@ def execute_install_plan(
     else:
         executable = _install_tar_archive(source, plan.install_directory, plan.package.executable)
 
-    _write_launcher(plan.launcher_path, plan.application_id, executable)
-    return InstallationResult(plan, executable)
+    icon = _discover_icon(plan.install_directory, plan.application_id)
+    _write_launcher(plan.launcher_path, plan.application_id, executable, icon)
+    return InstallationResult(plan, executable, icon)
 
 
 def _actions_for(
@@ -195,19 +198,124 @@ def _extract_member_safely(
     os.chmod(target, member.mode & 0o777)
 
 
-def _write_launcher(launcher_path: Path, application_id: str, executable: Path) -> None:
+def _write_launcher(
+    launcher_path: Path,
+    application_id: str,
+    executable: Path,
+    icon: Path | None,
+) -> None:
     launcher_path.parent.mkdir(parents=True, exist_ok=True)
-    escaped_executable = str(executable).replace("\\", "\\\\").replace(" ", "\\s")
+    electron = _electron_runtime_directory(executable) is not None
+    arguments = " --no-sandbox %U" if electron else " %U"
     content = (
         "[Desktop Entry]\n"
         "Type=Application\n"
         f"Name={application_id}\n"
-        f"Exec={escaped_executable}\n"
+        f"Exec={_desktop_quote(executable)}{arguments}\n"
+        f"Path={executable.parent}\n"
         "Terminal=false\n"
         "Categories=Utility;\n"
     )
+    if icon is not None:
+        content += f"Icon={icon}\n"
     launcher_path.write_text(content, encoding="utf-8")
     launcher_path.chmod(0o644)
+
+
+def _desktop_quote(path: Path) -> str:
+    """Quote a desktop-entry argument without invoking a shell."""
+    value = str(path).replace("\\", "\\\\").replace('"', '\\"')
+    return f'"{value}"'
+
+
+def _electron_runtime_directory(executable: Path) -> Path | None:
+    """Return Electron's runtime directory when the executable is Electron-based."""
+    directory = executable.parent
+    if (directory / "chrome-sandbox").is_file() and (directory / "resources" / "app.asar").is_file():
+        return directory
+    return None
+
+
+def _discover_icon(install_directory: Path, application_id: str) -> Path | None:
+    """Find an installed icon, extracting an Electron ASAR icon when necessary."""
+    candidates = [
+        path for path in install_directory.rglob("*")
+        if path.is_file() and path.suffix.lower() in {".png", ".svg", ".xpm"}
+    ]
+    if candidates:
+        return max(candidates, key=lambda path: _icon_score(path, application_id))
+
+    for archive in install_directory.rglob("app.asar"):
+        extracted = _extract_asar_icon(archive, install_directory)
+        if extracted is not None:
+            return extracted
+    return None
+
+
+def _icon_score(path: Path, application_id: str) -> tuple[int, int]:
+    name = path.stem.lower()
+    score = 0
+    if name == "icon":
+        score += 100
+    if application_id.replace("-", "") in name.replace("-", ""):
+        score += 50
+    if "tray" in name:
+        score -= 100
+    try:
+        size = path.stat().st_size
+    except OSError:
+        size = 0
+    return score, size
+
+
+def _extract_asar_icon(archive_path: Path, destination_directory: Path) -> Path | None:
+    """Extract the best PNG/SVG icon from an Electron ASAR archive safely."""
+    try:
+        with archive_path.open("rb") as archive:
+            prefix = archive.read(8)
+            header_size = int.from_bytes(prefix[4:8], "little")
+            if header_size < 8:
+                return None
+            header = json.loads(archive.read(header_size)[8:].decode("utf-8"))
+    except (OSError, UnicodeDecodeError, ValueError, json.JSONDecodeError):
+        return None
+
+    icons: list[tuple[str, dict[str, object]]] = []
+
+    def visit(node: dict[str, object], prefix: str = "") -> None:
+        children = node.get("files")
+        if not isinstance(children, dict):
+            return
+        for name, value in children.items():
+            if not isinstance(name, str) or not isinstance(value, dict):
+                continue
+            relative = f"{prefix}/{name}" if prefix else name
+            if name.lower().endswith((".png", ".svg")) and "tray" not in name.lower():
+                icons.append((relative, value))
+            visit(value, relative)
+
+    visit(header)
+    if not icons:
+        return None
+    icons.sort(key=lambda item: ("icon" in item[0].lower(), item[0].lower().endswith(".png")), reverse=True)
+    relative, metadata = icons[0]
+    try:
+        offset = int(metadata["offset"])
+        size = int(metadata["size"])
+        header_end = 8 + header_size
+    except (KeyError, TypeError, ValueError):
+        return None
+    try:
+        with archive_path.open("rb") as archive:
+            archive.seek(header_end + offset)
+            payload = archive.read(size)
+    except OSError:
+        return None
+    if len(payload) != size or not payload:
+        return None
+    destination = destination_directory / f".appforge-icon{Path(relative).suffix.lower()}"
+    destination.write_bytes(payload)
+    return destination
 
 
 def _application_id(name: str) -> str:

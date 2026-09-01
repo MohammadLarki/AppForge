@@ -16,6 +16,7 @@ class RegisteredInstallation:
     install_directory: str
     launcher_path: str
     executable: str | None
+    icon: str | None = None
 
 
 def install_and_record(plan: InstallationPlan) -> InstallationResult:
@@ -28,6 +29,7 @@ def install_and_record(plan: InstallationPlan) -> InstallationResult:
             install_directory=str(plan.install_directory),
             launcher_path=str(plan.launcher_path),
             executable=str(result.executable),
+            icon=str(result.icon) if result.icon else None,
         )
         path = _record_path(plan.application_id)
         path.parent.mkdir(parents=True, exist_ok=True)
@@ -38,7 +40,8 @@ def install_and_record(plan: InstallationPlan) -> InstallationResult:
 def uninstall(application_id: str) -> None:
     """Remove a previously recorded user-scope installation."""
 
-    path = _record_path(application_id)
+    path = _record_path(application_id).resolve()
+    _ensure_within(path, _record_root())
     try:
         data = json.loads(path.read_text(encoding="utf-8"))
     except FileNotFoundError as error:
