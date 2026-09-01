@@ -1,0 +1,13 @@
+Package: appforge
+Version: 0.1.0-1
+Architecture: all
+Maintainer: Mohammad Larki <mammadlarki.it@gmail.com>
+Installed-Size: 60
+Depends: python3 (>= 3.10), python3-tk
+Section: utils
+Priority: optional
+Homepage: https://github.com/MohammadLarki/AppForge
+Description: desktop installer for portable Linux applications
+ AppForge installs AppImage, tar.gz, and Debian application packages from a
+ graphical desktop interface. It creates desktop launchers and tracks user
+ installations for safe removal.

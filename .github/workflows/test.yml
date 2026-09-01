@@ -1,0 +1,42 @@
+name: Test
+
+on:
+  push:
+    branches: ["main", "feature/installer-core-v2"]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python -m pip install --upgrade pip pytest
+      - run: python -m pytest
+
+  debian-package:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes build-essential debhelper devscripts
+      - name: Build reproducible Debian package
+        run: |
+          export SOURCE_DATE_EPOCH=1700000000
+          dpkg-buildpackage -us -uc -b
+          cp ../appforge_0.1.0-1_all.deb /tmp/appforge-first.deb
+          debian/rules clean
+          dpkg-buildpackage -us -uc -b
+          cmp /tmp/appforge-first.deb ../appforge_0.1.0-1_all.deb
+      - name: Verify Debian package contents
+        run: |
+          deb=../appforge_0.1.0-1_all.deb
+          dpkg-deb -I "$deb" | grep --fixed-strings 'python3-tk'
+          dpkg-deb -c "$deb" | grep --fixed-strings './usr/bin/appforge'
+          dpkg-deb -c "$deb" | grep --fixed-strings './usr/share/applications/appforge.desktop'
+          dpkg-deb -c "$deb" | grep --fixed-strings './usr/share/icons/hicolor/scalable/apps/appforge.svg'
+          dpkg-deb -c "$deb" | grep --fixed-strings './usr/lib/appforge/appforge/desktop.py'
