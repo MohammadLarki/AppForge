@@ -1,0 +1,7 @@
+#!/bin/sh
+# AppForge's Debian launcher.  The package bundles its Python modules and uses
+# the distribution Python, so users do not need pip or a virtual environment.
+set -eu
+
+export PYTHONPATH="/usr/lib/appforge${PYTHONPATH:+:${PYTHONPATH}}"
+exec /usr/bin/python3 -m appforge "$@"

@@ -1,0 +1,4 @@
+appforge usr/lib/appforge
+packaging/appforge usr/bin
+packaging/appforge.desktop usr/share/applications
+packaging/appforge.svg usr/share/icons/hicolor/scalable/apps

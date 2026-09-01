@@ -16,6 +16,17 @@ launchers, and records user-level installations for later removal.
 
 ## Install and run
 
+### Ubuntu and Debian desktop package (recommended)
+
+Download the `appforge_0.1.0-1_all.deb` release and open it in your software
+installer, or install it with your package manager. It installs AppForge in the
+Applications menu with all required runtime dependencies; you do not need pip,
+a virtual environment, or terminal commands to launch it.
+
+To remove AppForge, use your normal software manager or run `sudo apt remove
+appforge`. See [the Debian packaging guide](docs/debian-packaging.md) for
+building and verifying a package from source.
+
 ### Python dependencies
 
 AppForge has no third-party runtime dependencies. To install the project from
