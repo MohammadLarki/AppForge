@@ -6,6 +6,13 @@ import sys
 from collections.abc import Callable
 
 
+DEVELOPER_LINKS = {
+    "Telegram": "https://t.me/HermitLab",
+    "GitHub": "https://github.com/MohammadLarki",
+    "Email": "mailto:mammadlarki.it@gmail.com",
+}
+
+
 def tkinter_install_instructions() -> str:
     """Return a distribution-oriented fix for a missing Tkinter binding."""
     return (

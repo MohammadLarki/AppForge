@@ -9,6 +9,14 @@ def test_tkinter_instructions_distinguish_system_and_python_dependencies() -> No
     assert "not by pip" in instructions
 
 
+def test_developer_links_are_complete_and_clickable() -> None:
+    assert gui.DEVELOPER_LINKS == {
+        "Telegram": "https://t.me/HermitLab",
+        "GitHub": "https://github.com/MohammadLarki",
+        "Email": "mailto:mammadlarki.it@gmail.com",
+    }
+
+
 def test_main_reports_missing_tkinter_without_traceback(monkeypatch, capsys) -> None:
     def missing_tkinter():
         raise ModuleNotFoundError("No module named 'tkinter'", name="tkinter")
