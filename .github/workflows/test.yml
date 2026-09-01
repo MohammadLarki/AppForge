@@ -23,7 +23,7 @@ jobs:
       - name: Install build dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install --yes debhelper devscripts
+          sudo apt-get install --yes build-essential debhelper devscripts
       - name: Build reproducible Debian package
         run: |
           export SOURCE_DATE_EPOCH=1700000000
