@@ -15,6 +15,7 @@ htmlcov/
 # Build artifacts
 build/
 dist/
+.dist/
 *.egg-info/
 
 # Local editor and environment files

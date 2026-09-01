@@ -1,8 +1,4 @@
-"""Detect supported Linux application packages.
-
-The detector is deliberately read-only: archives are inspected in place and are
-never extracted. Installation is handled by a later AppForge component.
-"""
+"""Detect supported Linux application packages and extracted applications."""
 
 from __future__ import annotations
 
@@ -14,7 +10,7 @@ import tarfile
 
 
 class PackageKind(str, Enum):
-    """Package formats understood by the first AppForge MVP."""
+    """Package formats understood by AppForge."""
 
     APPIMAGE = "appimage"
     DEB = "deb"
@@ -33,21 +29,22 @@ class ApplicationPackage:
     @property
     def supported(self) -> bool:
         """Whether AppForge can install this package format."""
-
         return self.kind is not PackageKind.UNKNOWN
 
 
+@dataclass(frozen=True)
+class DetectionResult:
+    """Information discovered about an extracted application directory."""
+
+    package_type: str
+    executable: Path | None = None
+    electron: bool = False
+
+
 def detect_package(path: str | Path) -> ApplicationPackage:
-    """Identify an application package at path.
-
-    For tar.gz and tgz archives, the returned executable is the first regular
-    file with an executable permission bit. Invalid or unreadable archives are
-    classified as unsupported instead of raising an extraction error.
-    """
-
+    """Identify an application package without extracting it."""
     package_path = Path(path).expanduser()
     name = package_path.name.lower()
-
     if name.endswith(".appimage"):
         return ApplicationPackage(package_path, PackageKind.APPIMAGE, package_path)
     if name.endswith(".deb"):
@@ -61,14 +58,36 @@ def detect_package(path: str | Path) -> ApplicationPackage:
 
 def _find_archive_executable(archive_path: Path) -> Path | None:
     """Return the first executable regular member in a gzip-compressed tar."""
-
     try:
         with tarfile.open(archive_path, mode="r:gz") as archive:
             for member in archive:
-                if member.isfile() and member.mode & (
-                    stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH
-                ):
+                if member.isfile() and member.mode & (stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH):
                     return Path(member.name)
     except (FileNotFoundError, OSError, tarfile.TarError):
         return None
     return None
+
+
+def detect_executable(directory: Path) -> Path | None:
+    """Find a likely top-level executable in an extracted application."""
+    try:
+        candidates = [
+            path for path in directory.iterdir()
+            if path.is_file() and path.name != "chrome-sandbox" and path.stat().st_mode & 0o111
+        ]
+    except OSError:
+        return None
+    if not candidates:
+        return None
+    normalized_name = directory.name.lower().replace("-x64", "").replace("_x64", "")
+    return next((item for item in candidates if normalized_name in item.name.lower()), candidates[0])
+
+
+def detect_extracted_app(directory: Path) -> DetectionResult:
+    """Inspect an extracted directory and identify a portable or Electron app."""
+    electron = bool(list((directory / "resources").glob("*.asar")) or (directory / "chrome-sandbox").exists())
+    return DetectionResult(
+        package_type="electron" if electron else "portable",
+        executable=detect_executable(directory),
+        electron=electron,
+    )

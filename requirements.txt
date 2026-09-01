@@ -1,4 +1,4 @@
-# Runtime: AppForge MVP uses only the Python standard library.
+# Runtime: AppForge uses only the Python standard library.
 
 # Development and test dependencies
 pytest>=8.0
