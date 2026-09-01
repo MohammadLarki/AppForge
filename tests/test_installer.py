@@ -10,7 +10,8 @@ from appforge.installer import (
 )
 
 
-def test_appimage_install_copies_file_and_writes_launcher(tmp_path: Path) -> None:
+def test_appimage_install_copies_file_and_writes_launcher(tmp_path: Path, monkeypatch) -> None:
+    monkeypatch.setenv("HOME", str(tmp_path / "home"))
     source = tmp_path / "My App.AppImage"
     source.write_text("appimage", encoding="utf-8")
     plan = create_install_plan(source)

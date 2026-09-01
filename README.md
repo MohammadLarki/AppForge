@@ -13,11 +13,38 @@ appropriate installation flow.
 - deb: installed system-wide with apt-get; the desktop asks for an
   administrator password through the operating system.
 
-## Run
+## Install and run
 
-AppForge currently uses only Python's standard library:
+### Python dependencies
+
+AppForge has no third-party Python dependencies. Install the project in a
+virtual environment (or run it from a checkout) with your preferred Python
+version:
+
+    python -m pip install -e .
+
+### System dependencies (Ubuntu and Debian)
+
+The desktop interface uses Tkinter. Tkinter is a system package and **cannot be
+installed with pip**. Install it before starting AppForge:
+
+    sudo apt update
+    sudo apt install python3-tk
+
+If you use a separately packaged Python version, install the matching Tkinter
+package instead; for example, Python 3.14 may require `python3.14-tk`.
+
+Then launch the application:
 
     python -m appforge
+
+or, after installation:
+
+    appforge
+
+If Tkinter is missing, AppForge exits with this installation guidance instead
+of showing a Python traceback. AppForge also needs a graphical desktop session
+with a display available; it cannot open a window in a headless terminal.
 
 ## Safety model
 
